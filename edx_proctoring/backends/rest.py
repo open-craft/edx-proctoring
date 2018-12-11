@@ -82,7 +82,7 @@ class BaseRestProctoringProvider(ProctoringBackendProvider):
         """
         Returns the url of the javascript bundle into which the provider's JS will be loaded
         """
-        package = self.__class__.__module__.split('.')[0]
+        package = self.__class__.__module__.split('.')[0].replace("_", "")
         js_url = ''
         try:
             bundle_chunks = get_files(package, config="WORKERS")
