@@ -1778,13 +1778,17 @@ def _get_practice_exam_view(exam, context, exam_id, user_id, course_id):
         return None
     elif attempt_status in [ProctoredExamStudentAttemptStatus.created,
                             ProctoredExamStudentAttemptStatus.download_software_clicked]:
-        provider_attempt = provider.get_attempt(attempt)
-        student_view_template = 'proctored_exam/instructions.html'
-        context.update({
-            'exam_code': attempt['attempt_code'],
-            'backend_instructions': provider_attempt.get('instructions', None),
-            'software_download_url': provider_attempt.get('download_url', None) or provider.get_software_download_url(),
-        })
+        active_exam_attempts = get_active_exams_for_user(user_id)
+        if active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
+            student_view_template = 'proctored_exam/other_exam_in_progress.html'
+        else:
+            provider_attempt = provider.get_attempt(attempt)
+            student_view_template = 'proctored_exam/instructions.html'
+            context.update({
+                'exam_code': attempt['attempt_code'],
+                'backend_instructions': provider_attempt.get('instructions', None),
+                'software_download_url': provider_attempt.get('download_url', None) or provider.get_software_download_url(),
+            })
     elif attempt_status == ProctoredExamStudentAttemptStatus.ready_to_start:
         student_view_template = 'proctored_exam/ready_to_start.html'
     elif attempt_status == ProctoredExamStudentAttemptStatus.error:
@@ -1899,9 +1903,12 @@ def _get_proctored_exam_view(exam, context, exam_id, user_id, course_id):
         return None
     elif attempt_status in [ProctoredExamStudentAttemptStatus.created,
                             ProctoredExamStudentAttemptStatus.download_software_clicked]:
+        active_exam_attempts = get_active_exams_for_user(user_id)
         if context.get('verification_status') is not APPROVED_STATUS:
             # if the user has not id verified yet, show them the page that requires them to do so
             student_view_template = 'proctored_exam/id_verification.html'
+        elif active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
+            student_view_template = 'proctored_exam/other_exam_in_progress.html'
         else:
             provider_attempt = provider.get_attempt(attempt)
             student_view_template = 'proctored_exam/instructions.html'
