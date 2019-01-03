@@ -1267,8 +1267,8 @@ def get_last_exam_completion_date(course_id, username):
 def get_active_exams_for_user(user_id, course_id=None):
     """
     This method will return a list of active exams for the user,
-    i.e. started_at != None and completed_at == None. Theoretically there
-    could be more than one, but in practice it will be one active exam.
+    i.e. started_at != None and completed_at == None. There will only
+    be one.
 
     If course_id is set, then attempts only for an exam in that course_id
     should be returned.
@@ -1783,13 +1783,14 @@ def _get_practice_exam_view(exam, context, exam_id, user_id, course_id):
         if active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
             student_view_template = 'proctored_exam/other_exam_in_progress.html'
         elif attempt_status in [ProctoredExamStudentAttemptStatus.created,
-                            ProctoredExamStudentAttemptStatus.download_software_clicked]:
+                                ProctoredExamStudentAttemptStatus.download_software_clicked]:
             provider_attempt = provider.get_attempt(attempt)
             student_view_template = 'proctored_exam/instructions.html'
             context.update({
                 'exam_code': attempt['attempt_code'],
                 'backend_instructions': provider_attempt.get('instructions', None),
-                'software_download_url': provider_attempt.get('download_url', None) or provider.get_software_download_url(),
+                'software_download_url': (provider_attempt.get('download_url', None)
+                                          or provider.get_software_download_url()),
             })
         else:
             # note: then the status must be ready_to_start

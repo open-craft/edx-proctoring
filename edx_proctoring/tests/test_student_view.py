@@ -64,6 +64,7 @@ class ProctoredExamStudentViewTests(ProctoredExamTestCase):
         self.practice_exam_submitted_msg = 'You have submitted this practice proctored exam'
         self.take_exam_without_proctoring_msg = 'Take this exam without proctoring'
         self.ready_to_start_msg = 'Important'
+        self.complete_other_exam_first_msg = 'Complete in-progress exam'
         self.footer_msg = 'About Proctored Exams'
         self.timed_footer_msg = 'Can I request additional time to complete my exam?'
 
@@ -456,6 +457,36 @@ class ProctoredExamStudentViewTests(ProctoredExamTestCase):
 
         rendered_response = self.render_proctored_exam()
         self.assertIsNone(rendered_response)
+
+    def test_get_studentview_exam_in_progress(self):
+        """
+        Assert that we get the right content when another exam was
+        started first
+        """
+        self._create_started_exam_attempt()
+        self.content_id = self.content_id + '_new'
+        self.proctored_exam_id = self._create_proctored_exam()
+        unstarted_attempt = self._create_unstarted_exam_attempt()
+
+        unstarted_attempt.status = ProctoredExamStudentAttemptStatus.created
+        unstarted_attempt.save()
+
+        rendered_response = self.render_proctored_exam()
+        self.assertIn(self.complete_other_exam_first_msg, rendered_response)
+
+    def test_get_studentview_exam_in_progress_practice(self):
+        """
+        Assert that we get the right content when another exam was
+        started first
+        """
+        self._create_started_exam_attempt()
+        unstarted_attempt = self._create_unstarted_exam_attempt(is_practice=True)
+
+        unstarted_attempt.status = ProctoredExamStudentAttemptStatus.created
+        unstarted_attempt.save()
+
+        rendered_response = self.render_practice_exam()
+        self.assertIn(self.complete_other_exam_first_msg, rendered_response)
 
     def test_get_studentview_ready(self):
         """
