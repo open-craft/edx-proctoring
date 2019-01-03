@@ -1781,6 +1781,7 @@ def _get_practice_exam_view(exam, context, exam_id, user_id, course_id):
                             ProctoredExamStudentAttemptStatus.ready_to_start]:
         active_exam_attempts = get_active_exams_for_user(user_id)
         if active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
+            context.update({'exam_url': _get_exam_url(active_exam_attempts[0])})
             student_view_template = 'proctored_exam/other_exam_in_progress.html'
         elif attempt_status in [ProctoredExamStudentAttemptStatus.created,
                                 ProctoredExamStudentAttemptStatus.download_software_clicked]:
@@ -1913,6 +1914,7 @@ def _get_proctored_exam_view(exam, context, exam_id, user_id, course_id):
             # if the user has not id verified yet, show them the page that requires them to do so
             student_view_template = 'proctored_exam/id_verification.html'
         elif active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
+            context.update({'exam_url': _get_exam_url(active_exam_attempts[0])})
             student_view_template = 'proctored_exam/other_exam_in_progress.html'
         elif attempt_status in [ProctoredExamStudentAttemptStatus.created,
                                 ProctoredExamStudentAttemptStatus.download_software_clicked]:
@@ -2033,6 +2035,21 @@ def get_student_view(user_id, course_id, content_id,
     if sub_view_func:
         return sub_view_func(exam, context, exam_id, user_id, course_id)
     return None
+
+
+def _get_exam_url(attempt_info):
+    """
+    Gets a url for the user to navigate to the specified special exam
+    """
+    exam = attempt_info['exam']
+    exam_url = ''
+    try:
+        # resolve the LMS url, note we can't assume we're running in
+        # a same process as the LMS
+        exam_url = reverse('jump_to', args=[exam['course_id'], exam['content_id']])
+    except NoReverseMatch:
+        log.exception("Can't find exam url for course %s", exam['course_id'])
+    return exam_url
 
 
 def get_exam_violation_report(course_id, include_practice_exams=False):
