@@ -132,6 +132,20 @@ class ProctoredExamStudentViewTests(ProctoredExamTestCase):
             context_overrides=exam_context_overrides
         )
 
+    def render_timed_exam(self, context_overrides=None):
+        """
+        Renders a test timed exam
+        """
+        exam_context_overrides = {
+            'is_proctored': False
+        }
+        if context_overrides:
+            exam_context_overrides.update(context_overrides)
+        return self._render_exam(
+            self.timed_exam_id,
+            context_overrides=exam_context_overrides
+        )
+
     def test_get_student_view(self):
         """
         Test for get_student_view prompting the user to take the exam
@@ -474,10 +488,20 @@ class ProctoredExamStudentViewTests(ProctoredExamTestCase):
         rendered_response = self.render_proctored_exam()
         self.assertIn(self.complete_other_exam_first_msg, rendered_response)
 
+    def test_get_studentview_exam_in_progress_timed(self):
+        """
+        Assert that we get the right content when another exam was
+        started first for timed and practice exams
+        """
+        self._create_started_exam_attempt()
+
+        rendered_response = self.render_timed_exam()
+        self.assertIn(self.complete_other_exam_first_msg, rendered_response)
+
     def test_get_studentview_exam_in_progress_practice(self):
         """
         Assert that we get the right content when another exam was
-        started first
+        started first for timed and practice exams
         """
         self._create_started_exam_attempt()
         unstarted_attempt = self._create_unstarted_exam_attempt(is_practice=True)

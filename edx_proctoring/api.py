@@ -1628,7 +1628,12 @@ def _get_timed_exam_view(exam, context, exam_id, user_id, course_id):
         if has_due_date_passed(exam['due_date']):
             student_view_template = 'timed_exam/expired.html'
         else:
-            student_view_template = 'timed_exam/entrance.html'
+            is_other_exam, other_exam_url = _get_running_exam_info(user_id, exam_id)
+            if is_other_exam:
+                context.update({'exam_url': other_exam_url})
+                student_view_template = 'proctored_exam/other_exam_in_progress.html'
+            else:
+                student_view_template = 'timed_exam/entrance.html'
     elif attempt_status == ProctoredExamStudentAttemptStatus.started:
         # when we're taking the exam we should not override the view
         return None
@@ -1637,7 +1642,7 @@ def _get_timed_exam_view(exam, context, exam_id, user_id, course_id):
     elif attempt_status == ProctoredExamStudentAttemptStatus.submitted:
         # If we are not hiding the exam after the due_date has passed,
         # check if the exam's due_date has passed. If so, return None
-        # so that the user can see his exam answers in read only mode.
+        # so that the user can see their exam answers in read only mode.
         if not exam['hide_after_due'] and has_due_date_passed(exam['due_date']):
             return None
 
@@ -1771,20 +1776,20 @@ def _get_practice_exam_view(exam, context, exam_id, user_id, course_id):
     attempt_status = attempt['status'] if attempt else None
     provider = get_backend_provider(exam)
 
-    if not attempt_status:
-        student_view_template = 'practice_exam/entrance.html'
-    elif attempt_status == ProctoredExamStudentAttemptStatus.started:
+    if attempt_status == ProctoredExamStudentAttemptStatus.started:
         # when we're taking the exam we should not override the view
         return None
-    elif attempt_status in [
+    elif not attempt_status or attempt_status in [
             ProctoredExamStudentAttemptStatus.created,
             ProctoredExamStudentAttemptStatus.download_software_clicked,
             ProctoredExamStudentAttemptStatus.ready_to_start,
     ]:
-        active_exam_attempts = get_active_exams_for_user(user_id)
-        if active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
-            context.update({'exam_url': _get_exam_url(active_exam_attempts[0])})
+        is_other_exam, other_exam_url = _get_running_exam_info(user_id, exam_id)
+        if is_other_exam:
+            context.update({'exam_url': other_exam_url})
             student_view_template = 'proctored_exam/other_exam_in_progress.html'
+        elif not attempt_status:
+            student_view_template = 'practice_exam/entrance.html'
         elif attempt_status in [
                 ProctoredExamStudentAttemptStatus.created,
                 ProctoredExamStudentAttemptStatus.download_software_clicked,
@@ -1846,82 +1851,82 @@ def _get_proctored_exam_view(exam, context, exam_id, user_id, course_id):
 
     provider = get_backend_provider(exam)
 
-    if not attempt_status:
-        # student has not started an attempt
-        # so, show them:
-        #       1) If there are failed prerequisites then block user and say why
-        #       2) If there are pending prerequisites then block user and allow them to remediate them
-        #       3) If there are declined prerequisites, then we auto-decline proctoring since user
-        #          explicitly declined their interest in credit
-        #       4) Otherwise - all prerequisites are satisfied - then give user
-        #          option to take exam as proctored
-
-        # get information about prerequisites
-
-        credit_requirement_status = (
-            credit_state.get('credit_requirement_status')
-            if credit_state else []
-        )
-
-        prerequisite_status = _are_prerequirements_satisfied(
-            credit_requirement_status,
-            evaluate_for_requirement_name=exam['content_id'],
-            filter_out_namespaces=['grade']
-        )
-
-        # add any prerequisite information, if applicable
-        context.update({
-            'prerequisite_status': prerequisite_status
-        })
-
-        # if exam due date has passed, then we can't take the exam
-        if has_due_date_passed(exam['due_date']):
-            student_view_template = 'proctored_exam/expired.html'
-        elif not prerequisite_status['are_prerequisites_satisifed']:
-            # do we have any declined prerequisites, if so, then we
-            # will auto-decline this proctored exam
-            if prerequisite_status['declined_prerequisites']:
-                # user hasn't a record of attempt, create one now
-                # so we can mark it as declined
-                _create_and_decline_attempt(exam_id, user_id)
-                return None
-
-            # do we have failed prerequisites? That takes priority in terms of
-            # messaging
-            if prerequisite_status['failed_prerequisites']:
-                # Let's resolve the URLs to jump to this prequisite
-                prerequisite_status['failed_prerequisites'] = _resolve_prerequisite_links(
-                    exam,
-                    prerequisite_status['failed_prerequisites']
-                )
-                student_view_template = 'proctored_exam/failed-prerequisites.html'
-            else:
-                # Let's resolve the URLs to jump to this prequisite
-                prerequisite_status['pending_prerequisites'] = _resolve_prerequisite_links(
-                    exam,
-                    prerequisite_status['pending_prerequisites']
-                )
-                student_view_template = 'proctored_exam/pending-prerequisites.html'
-        else:
-            student_view_template = 'proctored_exam/entrance.html'
-            # emit an event that the user was presented with the option
-            # to start timed exam
-            emit_event(exam, 'option-presented')
-    elif attempt_status == ProctoredExamStudentAttemptStatus.started:
+    if attempt_status == ProctoredExamStudentAttemptStatus.started:
         # when we're taking the exam we should not override the view
         return None
-    elif attempt_status in [
+    elif not attempt_status or attempt_status in [
             ProctoredExamStudentAttemptStatus.created,
             ProctoredExamStudentAttemptStatus.download_software_clicked,
             ProctoredExamStudentAttemptStatus.ready_to_start,
     ]:
-        active_exam_attempts = get_active_exams_for_user(user_id)
-        if context.get('verification_status') is not APPROVED_STATUS:
+        is_other_exam, other_exam_url = _get_running_exam_info(user_id, exam_id)
+        if is_other_exam:
+            context.update({'exam_url': other_exam_url})
+            student_view_template = 'proctored_exam/other_exam_in_progress.html'
+        elif not attempt_status:
+            # student has not started an attempt
+            # so, show them:
+            #       1) If there are failed prerequisites then block user and say why
+            #       2) If there are pending prerequisites then block user and allow them to remediate them
+            #       3) If there are declined prerequisites, then we auto-decline proctoring since user
+            #          explicitly declined their interest in credit
+            #       4) Otherwise - all prerequisites are satisfied - then give user
+            #          option to take exam as proctored
+
+            # get information about prerequisites
+
+            credit_requirement_status = (
+                credit_state.get('credit_requirement_status')
+                if credit_state else []
+            )
+
+            prerequisite_status = _are_prerequirements_satisfied(
+                credit_requirement_status,
+                evaluate_for_requirement_name=exam['content_id'],
+                filter_out_namespaces=['grade']
+            )
+
+            # add any prerequisite information, if applicable
+            context.update({
+                'prerequisite_status': prerequisite_status
+            })
+
+            # if exam due date has passed, then we can't take the exam
+            if has_due_date_passed(exam['due_date']):
+                student_view_template = 'proctored_exam/expired.html'
+            elif not prerequisite_status['are_prerequisites_satisifed']:
+                # do we have any declined prerequisites, if so, then we
+                # will auto-decline this proctored exam
+                if prerequisite_status['declined_prerequisites']:
+                    # user hasn't a record of attempt, create one now
+                    # so we can mark it as declined
+                    _create_and_decline_attempt(exam_id, user_id)
+                    return None
+
+                # do we have failed prerequisites? That takes priority in terms of
+                # messaging
+                if prerequisite_status['failed_prerequisites']:
+                    # Let's resolve the URLs to jump to this prequisite
+                    prerequisite_status['failed_prerequisites'] = _resolve_prerequisite_links(
+                        exam,
+                        prerequisite_status['failed_prerequisites']
+                    )
+                    student_view_template = 'proctored_exam/failed-prerequisites.html'
+                else:
+                    # Let's resolve the URLs to jump to this prequisite
+                    prerequisite_status['pending_prerequisites'] = _resolve_prerequisite_links(
+                        exam,
+                        prerequisite_status['pending_prerequisites']
+                    )
+                    student_view_template = 'proctored_exam/pending-prerequisites.html'
+            else:
+                student_view_template = 'proctored_exam/entrance.html'
+                # emit an event that the user was presented with the option
+                # to start timed exam
+                emit_event(exam, 'option-presented')
+        elif context.get('verification_status') is not APPROVED_STATUS:
             # if the user has not id verified yet, show them the page that requires them to do so
             student_view_template = 'proctored_exam/id_verification.html'
-        elif active_exam_attempts and active_exam_attempts[0]['attempt']['id'] != attempt['id']:
-            context.update({'exam_url': _get_exam_url(active_exam_attempts[0])})
-            student_view_template = 'proctored_exam/other_exam_in_progress.html'
         elif attempt_status in [
                 ProctoredExamStudentAttemptStatus.created,
                 ProctoredExamStudentAttemptStatus.download_software_clicked,
@@ -2058,6 +2063,20 @@ def _get_exam_url(attempt_info):
     except NoReverseMatch:
         log.exception("Can't find exam url for course %s", exam['course_id'])
     return exam_url
+
+
+def _get_running_exam_info(user_id, currently_visited_exam_id):
+    """
+    Check whether there are any other currently active exams besides
+    that currently being viewed
+    """
+    active_exam_attempts = get_active_exams_for_user(user_id)
+    other_exam_url = ''
+    is_other_exam = (active_exam_attempts
+                     and active_exam_attempts[0]['exam']['id'] != currently_visited_exam_id)
+    if is_other_exam:
+        other_exam_url = _get_exam_url(active_exam_attempts[0])
+    return is_other_exam, other_exam_url
 
 
 def get_exam_violation_report(course_id, include_practice_exams=False):
