@@ -132,15 +132,13 @@ class ProctoredExamStudentViewTests(ProctoredExamTestCase):
             context_overrides=exam_context_overrides
         )
 
-    def render_timed_exam(self, context_overrides=None):
+    def render_timed_exam(self):
         """
         Renders a test timed exam
         """
         exam_context_overrides = {
             'is_proctored': False
         }
-        if context_overrides:
-            exam_context_overrides.update(context_overrides)
         return self._render_exam(
             self.timed_exam_id,
             context_overrides=exam_context_overrides
